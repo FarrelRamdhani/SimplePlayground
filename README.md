@@ -1,11 +1,11 @@
 # SimplePlayground
 
-A tiny Streamlit app to quickly try prompts across OpenAI‑compatible chat endpoints. Point it at OpenAI or any self‑hosted/proxy service that speaks the OpenAI Chat Completions API, tweak parameters, and export conversations.
+A tiny Streamlit app to quickly try prompts across chat endpoints. Point it at any provider or self‑hosted/proxy service that speaks a Chat Completions–style API, tweak parameters, and export conversations.
 
 ## Features
 
-- OpenAI‑compatible endpoint support (configurable Base URL in the sidebar)
-- Model parameters: temperature, max_tokens, top_p, frequency_penalty, presence_penalty
+- Provider‑agnostic: set any Base URL that exposes a `/v1` Chat Completions‑style API
+- Model parameters: temperature, max_tokens (default 1024), top_p, frequency_penalty, presence_penalty
 - System prompt input for role/behavior
 - Editable chat history with per‑message delete
 - Export chat as JSON or plain text
@@ -69,10 +69,10 @@ Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass
 ## Usage
 
 1. In the sidebar, configure your API details:
-	- API Token: your provider key (e.g., OpenAI key starting with `sk-...`)
-	- Base URL: either check “Use OpenAI default URL” or provide a custom base (e.g., a proxy)
+	- API Token: your provider key/token
+	- Base URL: either check “Use sample base URL (/v1)” to use `http://localhost:11434/v1`, or provide your own (e.g., `https://your-provider.example.com/v1`)
 
-2. Choose a model and tweak parameters.
+2. Enter a model name (free text) and tweak parameters.
 
 3. Type messages in the chat box; responses stream in. You can delete individual messages.
 
@@ -80,25 +80,25 @@ Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass
 
 ## Provider notes
 
-This app uses the OpenAI Python SDK (v1.x) and the Chat Completions API path. If your service is truly OpenAI‑compatible, it should work by supplying:
+This app targets Chat Completions–style APIs. To use it, provide:
 
-- A valid API key for your service
-- The correct Base URL for the Chat Completions endpoint
-- A model name your service recognizes
+- A valid API token for your service
+- A Base URL that exposes a `/v1` Chat Completions endpoint
+- A model identifier your service recognizes (free‑text input)
 
 Examples:
 
-- OpenAI: Base URL `https://api.openai.com/v1` with your OpenAI API key
-- Proxies / self‑hosted: Use the URL your proxy exposes (make sure it forwards to an OpenAI‑compatible Chat Completions API)
+- Local runtime: `http://localhost:11434/v1`
+- Hosted service: `https://your-provider.example.com/v1`
 
-Note: Some providers mimic the API but require provider‑specific headers or paths. If so, ensure your proxy normalizes them to standard OpenAI headers/paths.
+Note: If your provider requires non‑standard headers or routes, place a proxy in front that normalizes requests to a common Chat Completions shape.
 
 ## Troubleshooting
 
 - 401/403 Unauthorized: Check your API token and whether the Base URL expects a different key or header format.
 - 404 Not Found: Verify the Base URL points to an OpenAI‑compatible path (commonly ends with `/v1`).
 - 429 Rate limit: Reduce request frequency or adjust your provider limits.
-- AttributeError/TypeError around `openai` or `chat.completions`: Ensure you’re on OpenAI Python SDK v1.x (`pip install -U openai`).
+- AttributeError/TypeError around the SDK or `chat.completions`: Ensure the installed `openai` package is up to date (`pip install -U openai`).
 - Streamlit not starting on port 8501: Another process may be using the port. Close the other process or run `streamlit run main.py --server.port 8502`.
 
 ## Project structure
