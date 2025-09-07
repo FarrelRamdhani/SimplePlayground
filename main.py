@@ -2,6 +2,34 @@ import streamlit as st
 import openai
 from openai import OpenAI
 import json
+import time
+
+# --- Utility: token estimation ---
+_tokenizer = None
+
+def estimate_tokens(text: str) -> int:
+    """Estimate token count for a given text.
+    Tries tiktoken if available, otherwise falls back to simple heuristics.
+    """
+    global _tokenizer
+    if not text:
+        return 0
+    if _tokenizer is None:
+        try:
+            import tiktoken  # type: ignore
+            _tokenizer = tiktoken.get_encoding("cl100k_base")
+        except Exception:
+            _tokenizer = False  # sentinel for fallback
+    if _tokenizer and _tokenizer is not False:
+        try:
+            return len(_tokenizer.encode(text))
+        except Exception:
+            pass
+    # Fallback: rough estimate (split on whitespace or chars/4)
+    words = text.strip().split()
+    if words:
+        return len(words)
+    return max(1, len(text) // 4)
 
 # Page configuration
 st.set_page_config(
@@ -189,8 +217,12 @@ if prompt := st.chat_input("Type your message here...", disabled=not st.session_
 
     # Generate assistant response with streaming
     with st.chat_message("assistant"):
+        stats_placeholder = st.empty()
         message_placeholder = st.empty()
         full_response = ""
+        tokens_so_far = 0
+        request_start = time.perf_counter()
+        first_token_time = None
 
         try:
             # Create streaming response
@@ -208,11 +240,46 @@ if prompt := st.chat_input("Type your message here...", disabled=not st.session_
             # Stream the response
             for chunk in stream:
                 if chunk.choices[0].delta.content is not None:
-                    full_response += chunk.choices[0].delta.content
+                    piece = chunk.choices[0].delta.content
+                    # TTFT
+                    if first_token_time is None:
+                        first_token_time = time.perf_counter()
+                    # Accumulate
+                    full_response += piece
+                    tokens_so_far += estimate_tokens(piece)
+                    # Update content
                     message_placeholder.markdown(full_response + "▌")
+                    # Update live stats
+                    if first_token_time is not None:
+                        gen_elapsed = max(1e-6, time.perf_counter() - first_token_time)
+                        avg_tps = tokens_so_far / gen_elapsed
+                        ttft_ms = (first_token_time - request_start) * 1000.0
+                        stats_placeholder.markdown(
+                            f"⏱ TTFT: {ttft_ms:.0f} ms | 🔢 tokens: {tokens_so_far} | ⚡ avg TPS: {avg_tps:.2f}"
+                        )
 
             # Final display without cursor
             message_placeholder.markdown(full_response)
+            # Final metrics
+            end_time = time.perf_counter()
+            if first_token_time is not None:
+                gen_elapsed = max(1e-6, end_time - first_token_time)
+                final_tps = tokens_so_far / gen_elapsed
+                ttft_s = first_token_time - request_start
+                stats_placeholder.markdown(
+                    f"⏱ TTFT: {ttft_s*1000.0:.0f} ms | 🔢 tokens: {tokens_so_far} | ⚡ avg TPS: {final_tps:.2f}"
+                )
+                # Save metrics to session
+                st.session_state["last_ttft_s"] = ttft_s
+                st.session_state["last_tokens"] = tokens_so_far
+                st.session_state["last_tps"] = final_tps
+                st.session_state["last_gen_seconds"] = gen_elapsed
+            else:
+                # No content received
+                st.session_state["last_ttft_s"] = None
+                st.session_state["last_tokens"] = 0
+                st.session_state["last_tps"] = 0.0
+                st.session_state["last_gen_seconds"] = 0.0
 
         except (openai.APIError, openai.APIConnectionError, openai.AuthenticationError, openai.RateLimitError, ValueError) as e:
             error_msg = f"❌ Error: {str(e)}"
@@ -238,6 +305,19 @@ with col2:
 
 with col3:
     st.metric("Model", model)
+
+# Performance metrics summary
+if st.session_state.get("last_ttft_s") is not None:
+    st.subheader("⚡ Performance (last response)")
+    m1, m2, m3, m4 = st.columns(4)
+    with m1:
+        st.metric("TTFT", f"{st.session_state['last_ttft_s']*1000.0:.0f} ms")
+    with m2:
+        st.metric("Avg TPS", f"{st.session_state['last_tps']:.2f}")
+    with m3:
+        st.metric("Tokens", st.session_state.get("last_tokens", 0))
+    with m4:
+        st.metric("Gen Time", f"{st.session_state.get('last_gen_seconds', 0.0):.2f} s")
 
 # Export chat functionality
 if st.session_state.messages:
