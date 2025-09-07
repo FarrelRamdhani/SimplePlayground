@@ -40,6 +40,32 @@ streamlit run main.py
 
 Streamlit will print a local URL (usually <http://localhost:8501>). Open it in your browser.
 
+### Optional: Use a virtual environment
+
+Although optional, using a virtual environment keeps your global Python clean:
+
+```powershell
+# Create a venv in a folder named ".venv" (preferred)
+py -m venv .venv
+
+# OR create it as "venv" (also common)
+py -m venv venv
+
+# Activate (PowerShell)
+.\.venv\Scripts\Activate.ps1
+# or
+.\venv\Scripts\Activate.ps1
+
+# Deactivate when done
+deactivate
+```
+
+If PowerShell blocks activation due to script policies, you can temporarily allow it for the current session only:
+
+```powershell
+Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass
+```
+
 ## Usage
 
 1. In the sidebar, configure your API details:
